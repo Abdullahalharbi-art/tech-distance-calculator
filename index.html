@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>حاسبة مسافة الفني</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#f6f8fb; --card:#ffffff; --card-soft:#fbfcfe; --tab:#eef2f6;
@@ -73,9 +74,9 @@
   label{display:block;font-size:.86rem;font-weight:700;margin:16px 0 6px}
   .card > label:first-child,.card > h2 + label{margin-top:0}
   label .req{color:var(--err)}
-  input[type=text],select{width:100%;padding:12px 13px;font-size:1rem;font-family:inherit;border:1.5px solid var(--line);border-radius:11px;background:var(--input);color:var(--text);transition:border-color .2s,box-shadow .2s,background .2s}
-  input[type=text]:hover,select:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line))}
-  input[type=text]:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-soft)}
+  input[type=text],input[type=date],select{width:100%;padding:12px 13px;font-size:1rem;font-family:inherit;border:1.5px solid var(--line);border-radius:11px;background:var(--input);color:var(--text);transition:border-color .2s,box-shadow .2s,background .2s}
+  input[type=text]:hover,input[type=date]:hover,select:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line))}
+  input[type=text]:focus,input[type=date]:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-soft)}
   input.invalid{border-color:var(--err);box-shadow:0 0 0 3px color-mix(in srgb,var(--err) 12%,transparent)}
   .ltr{direction:ltr;text-align:left}.hint{font-size:.8rem;color:var(--muted);margin-top:6px;min-height:1.2em}.hint.ok{color:var(--ok)}.hint.err{color:var(--err)}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:460px){.row{grid-template-columns:1fr}}
@@ -160,6 +161,9 @@
 
       <label for="work">نوع العمل</label>
       <input type="text" id="work" autocomplete="off">
+
+      <label for="date">تاريخ المهمة</label>
+      <input type="date" id="date" autocomplete="off">
     </section>
 
     <section class="card">
@@ -222,6 +226,7 @@
         <button class="btn sec" id="sumWa" type="button">💬 واتساب</button>
         <button class="btn sec" id="sumCsv" type="button">📋 نسخ بيانات Excel</button>
       </div>
+      <button class="btn sec" id="sumXlsx" type="button">📊 تحميل ملف Excel الجاهز</button>
     </section>
     <p class="note">البيانات محفوظة على هذا الجهاز فقط. لجمع رحلات فنيين من أجهزة مختلفة، كل فني يرسل ملخصه بالواتساب.</p>
   </main>
@@ -250,13 +255,18 @@ const TRIP = {
   return: { label: 'عودة فقط',   mult: 1 },
   both:   { label: 'ذهاب وعودة', mult: 2 }
 };
-const FIELDS = ['tech','est','hood','eng','work','dest'];
+const FIELDS = ['tech','est','hood','eng','work','dest','date'];
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtC = n => n.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
 const coordText = p => fmtC(p.lat) + ', ' + fmtC(p.lng);
+function todayISO(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
 const str = v => (typeof v === 'string' ? v : '');
 /* يثبّت اتجاه الأرقام والإحداثيات من اليسار لليمين داخل النص العربي حتى ما تنعكس */
 const ltr = s => '⁦' + s + '⁩';
@@ -269,7 +279,7 @@ function newTrip(){
   S.seq++;
   const used = new Set(S.trips.map(t => t.color));
   const free = PALETTE.find(p => !used.has(p.c)) || PALETTE[S.seq % PALETTE.length];
-  return { id: 't' + Date.now().toString(36) + S.seq, n: S.seq, tech:'', est:'', hood:'', eng:'', work:'', dest:'',
+  return { id: 't' + Date.now().toString(36) + S.seq, n: S.seq, tech:'', est:'', hood:'', eng:'', work:'', dest:'', date:todayISO(),
            startName: DEFAULT_START.name, startCoords: DEFAULT_START.coords, factor:'1',
            type:'both', color: free.c, done:false };
 }
@@ -280,7 +290,7 @@ function load(){
   if(d && Array.isArray(d.trips)){
     S.trips = d.trips.slice(0, MAX_TRIPS).map((t, i) => ({
       id: str(t.id) || ('t' + i), n: +t.n || (i + 1),
-      tech: str(t.tech), est: str(t.est), hood: str(t.hood), eng: str(t.eng), work: str(t.work), dest: str(t.dest),
+      tech: str(t.tech), est: str(t.est), hood: str(t.hood), eng: str(t.eng), work: str(t.work), dest: str(t.dest), date: str(t.date) || todayISO(),
       startName: str(t.startName) || str(d.startName) || DEFAULT_START.name,
       startCoords: str(t.startCoords) || str(d.startCoords) || DEFAULT_START.coords,
       factor: str(t.factor) || str(d.factor) || '1',
@@ -614,13 +624,38 @@ function allText(){
   return s;
 }
 function exportText(){
-  const head = ['اسم الفني','رقم المقايسة','اسم الحي','اسم المهندس الموجه','نوع العمل','إحداثية موقع العمل','نوع الرحلة','المسافة اتجاه واحد (كم)','إجمالي المسافة (كم)'];
+  const head = ['اسم الفني','رقم المقايسة','اسم الحي','اسم المهندس الموجه','نوع العمل','إحداثية موقع العمل','نوع الرحلة','المسافة اتجاه واحد (كم)','إجمالي المسافة (كم)','تاريخ المهمة'];
   const rows = orderedTrips().map(t => {
     const c = calc(t);
     return [t.tech.trim(), t.est.trim(), t.hood.trim(), t.eng.trim(), t.work.trim(), c.dest ? coordText(c.dest) : t.dest.trim(), TRIP[t.type].label,
-      c.oneWay === null ? '' : c.oneWay.toFixed(2), c.total === null ? '' : c.total.toFixed(2)];
+      c.oneWay === null ? '' : c.oneWay.toFixed(2), c.total === null ? '' : c.total.toFixed(2), t.date || todayISO()];
   });
   return [head, ...rows].map(row => row.map(v => String(v).replace(/[\t\r\n]+/g, ' ').trim()).join('\t')).join('\n');
+}
+function dateDisplay(iso){
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : iso || '';
+}
+async function downloadExcelTemplate(){
+  if(typeof XLSX === 'undefined'){ toast('تعذر تحميل أدوات Excel، حاول مرة أخرى', true); return; }
+  try{
+    const res = await fetch('cost-template.xlsx?v=1');
+    if(!res.ok) throw new Error('template');
+    const wb = XLSX.read(await res.arrayBuffer(), { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    orderedTrips().forEach((t, i) => {
+      const r = 5 + i, c = calc(t);
+      ws['B' + r] = { v:t.est.trim(), t:'s' };
+      ws['C' + r] = { v:t.hood.trim(), t:'s' };
+      ws['D' + r] = { v:c.dest ? coordText(c.dest) : t.dest.trim(), t:'s' };
+      ws['E' + r] = { v:t.work.trim(), t:'s' };
+      ws['F' + r] = { v:t.eng.trim(), t:'s' };
+      ws['G' + r] = { v:c.total === null ? '' : Number(c.total.toFixed(2)), t:c.total === null ? 's' : 'n' };
+      ws['H' + r] = { v:dateDisplay(t.date), t:'s' };
+    });
+    XLSX.writeFile(wb, 'تكلفة-البنزين-رحلات.xlsx');
+    toast('تم تجهيز ملف Excel بالرحلات ✔');
+  }catch(e){ toast('تعذر تجهيز ملف Excel، تأكد من اتصال الإنترنت', true); }
 }
 
 /* ---------- أدوات ---------- */
@@ -724,6 +759,7 @@ $('sumList').addEventListener('click', e => {
 $('sumCopy').addEventListener('click', async () => toast(await copyText(allText()) ? 'تم نسخ الملخص ✔' : 'تعذر النسخ', false));
 $('sumWa').addEventListener('click', () => whatsapp(allText()));
 $('sumCsv').addEventListener('click', async () => toast(await copyText(exportText()) ? 'تم نسخ بيانات Excel ✔' : 'تعذر النسخ', false));
+$('sumXlsx').addEventListener('click', downloadExcelTemplate);
 
 /* ---------- تشغيل ---------- */
 (function init(){
