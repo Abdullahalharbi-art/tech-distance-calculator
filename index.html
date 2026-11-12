@@ -202,6 +202,7 @@
         <button class="btn sec" id="copySum" type="button">📄 نسخ الملخص</button>
         <button class="btn ghost" id="del" type="button">🗑️ حذف الرحلة</button>
       </div>
+      <button class="btn sec" id="tripXlsx" type="button">📊 تحميل Excel لهذه الرحلة</button>
     </section>
   </main>
 
@@ -636,14 +637,14 @@ function dateDisplay(iso){
   const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? m[3] + '/' + m[2] + '/' + m[1] : iso || '';
 }
-async function downloadExcelTemplate(){
+async function downloadExcelTemplate(list = orderedTrips(), filename = 'تكلفة-البنزين-رحلات.xlsx'){
   if(typeof XLSX === 'undefined'){ toast('تعذر تحميل أدوات Excel، حاول مرة أخرى', true); return; }
   try{
     const res = await fetch('cost-template.xlsx?v=1');
     if(!res.ok) throw new Error('template');
     const wb = XLSX.read(await res.arrayBuffer(), { type:'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    orderedTrips().forEach((t, i) => {
+    list.forEach((t, i) => {
       const r = 5 + i, c = calc(t);
       ws['B' + r] = { v:t.est.trim(), t:'s' };
       ws['C' + r] = { v:t.hood.trim(), t:'s' };
@@ -653,7 +654,7 @@ async function downloadExcelTemplate(){
       ws['G' + r] = { v:c.total === null ? '' : Number(c.total.toFixed(2)), t:c.total === null ? 's' : 'n' };
       ws['H' + r] = { v:dateDisplay(t.date), t:'s' };
     });
-    XLSX.writeFile(wb, 'تكلفة-البنزين-رحلات.xlsx');
+    XLSX.writeFile(wb, filename);
     toast('تم تجهيز ملف Excel بالرحلات ✔');
   }catch(e){ toast('تعذر تجهيز ملف Excel، تأكد من اتصال الإنترنت', true); }
 }
@@ -732,6 +733,11 @@ $('copyLink').addEventListener('click', async () => {
 $('copySum').addEventListener('click', async () => {
   const s = tripSummary(cur()); if(!s) return;
   toast(await copyText(s) ? 'تم نسخ الملخص ✔' : 'تعذر النسخ', false);
+});
+$('tripXlsx').addEventListener('click', () => {
+  const t = cur(); if(!t) return;
+  const label = (t.est.trim() || ('رحلة-' + t.n)).replace(/[\\/:*?"<>|]+/g, '-');
+  downloadExcelTemplate([t], 'تكلفة-البنزين-' + label + '.xlsx');
 });
 $('wa').addEventListener('click', () => { const s = tripSummary(cur()); if(s) whatsapp(s); });
 
