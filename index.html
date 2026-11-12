@@ -220,7 +220,7 @@
       <button class="btn" id="sumCopy" type="button">📄 نسخ الملخص</button>
       <div class="btns2">
         <button class="btn sec" id="sumWa" type="button">💬 واتساب</button>
-        <button class="btn sec" id="sumCsv" type="button">⬇️ ملف Excel</button>
+        <button class="btn sec" id="sumCsv" type="button">📋 نسخ بيانات Excel</button>
       </div>
     </section>
     <p class="note">البيانات محفوظة على هذا الجهاز فقط. لجمع رحلات فنيين من أجهزة مختلفة، كل فني يرسل ملخصه بالواتساب.</p>
@@ -592,20 +592,14 @@ function allText(){
   }
   return s;
 }
-const csvCell = v => { v = String(v == null ? '' : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-function downloadCsv(){
+function exportText(){
   const head = ['اسم الفني','رقم المقايسة','اسم الحي','اسم المهندس الموجه','نوع العمل','إحداثية موقع العمل','نوع الرحلة','المسافة اتجاه واحد (كم)','إجمالي المسافة (كم)'];
   const rows = S.trips.map(t => {
     const c = calc(t);
     return [t.tech.trim(), t.est.trim(), t.hood.trim(), t.eng.trim(), t.work.trim(), t.dest.trim(), TRIP[t.type].label,
       c.oneWay === null ? '' : c.oneWay.toFixed(2), c.total === null ? '' : c.total.toFixed(2)];
   });
-  const csv = '\uFEFF' + [head, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = 'trips-' + new Date().toISOString().slice(0, 10) + '.csv';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  return [head, ...rows].map(row => row.map(v => String(v).replace(/[\t\r\n]+/g, ' ').trim()).join('\t')).join('\n');
 }
 
 /* ---------- أدوات ---------- */
@@ -700,7 +694,7 @@ $('sumList').addEventListener('click', e => {
 });
 $('sumCopy').addEventListener('click', async () => toast(await copyText(allText()) ? 'تم نسخ الملخص ✔' : 'تعذر النسخ', false));
 $('sumWa').addEventListener('click', () => whatsapp(allText()));
-$('sumCsv').addEventListener('click', downloadCsv);
+$('sumCsv').addEventListener('click', async () => toast(await copyText(exportText()) ? 'تم نسخ بيانات Excel ✔' : 'تعذر النسخ', false));
 
 /* ---------- تشغيل ---------- */
 (function init(){
