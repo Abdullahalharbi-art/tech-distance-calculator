@@ -594,11 +594,11 @@ function allText(){
 }
 const csvCell = v => { v = String(v == null ? '' : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function downloadCsv(){
-  const head = ['الفني','رقم المقايسة','الحي','المهندس الموجه','نوع العمل','نوع الرحلة','المسافة اتجاه واحد (كم)','إجمالي المسافة (كم)','منجزة','رابط الموقع'];
+  const head = ['اسم الفني','رقم المقايسة','اسم الحي','اسم المهندس الموجه','نوع العمل','إحداثية موقع العمل','نوع الرحلة','المسافة اتجاه واحد (كم)','إجمالي المسافة (كم)'];
   const rows = S.trips.map(t => {
     const c = calc(t);
-    return [t.tech.trim(), t.est.trim(), t.hood.trim(), t.eng.trim(), t.work.trim(), TRIP[t.type].label,
-      c.oneWay === null ? '' : c.oneWay.toFixed(2), c.total === null ? '' : c.total.toFixed(2), t.done ? 'نعم' : 'لا', c.link];
+    return [t.tech.trim(), t.est.trim(), t.hood.trim(), t.eng.trim(), t.work.trim(), t.dest.trim(), TRIP[t.type].label,
+      c.oneWay === null ? '' : c.oneWay.toFixed(2), c.total === null ? '' : c.total.toFixed(2)];
   });
   const csv = '\uFEFF' + [head, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
   const a = document.createElement('a');
