@@ -53,7 +53,7 @@
   .tab:hover{transform:translateY(-2px)}
   .tab .t1{font-weight:750;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   .tab .t2{font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;opacity:.8}
-  .tab.on{background:var(--card);color:var(--text);box-shadow:0 5px 15px rgba(24,43,70,.1);padding-top:10px}
+  .tab.on{background:var(--card);color:var(--text);box-shadow:0 5px 15px rgba(24,43,70,.1);padding-top:10px}.tab.done{opacity:.7}.tab.done.on{opacity:1}
   .sumtab{--c:var(--muted);min-width:98px}
   .sumtab.on{--c:var(--brand)}
   .chk{display:inline-flex;width:16px;height:16px;border-radius:50%;background:var(--done);color:var(--on-done);font-size:.62rem;align-items:center;justify-content:center;margin-inline-start:5px;vertical-align:1px}
@@ -102,7 +102,7 @@
     <p>كل رحلة لها تبويب منفصل، وكل شي يتحفظ تلقائياً على جهازك</p>
   </header>
 
-  <!-- نقطة الانطلاق (مشتركة لكل الرحلات) -->
+  <!-- نقطة الانطلاق الخاصة بالرحلة الحالية -->
   <details class="start" id="startBox">
     <summary>
       <span>📍 نقطة الانطلاق: <b id="startLabel">الصناعية</b></span>
@@ -110,8 +110,8 @@
     </summary>
     <label for="startName">اسم نقطة الانطلاق</label>
     <input type="text" id="startName" autocomplete="off">
-    <label for="startCoords">إحداثية نقطة الانطلاق</label>
-    <input type="text" id="startCoords" class="ltr" placeholder="24.0000, 46.0000" autocomplete="off">
+    <label for="startCoords">رابط أو إحداثية نقطة الانطلاق</label>
+    <input type="text" id="startCoords" class="ltr" placeholder="رابط Google Maps أو 24.0000, 46.0000" autocomplete="off">
     <div class="hint" id="startHint"></div>
     <label for="factor">معامل الطريق</label>
     <input type="text" id="factor" class="ltr" value="1" autocomplete="off" inputmode="decimal">
@@ -175,7 +175,7 @@
 
     <section class="card">
       <h2>📏 المسافة</h2>
-      <div class="warnbox" id="startWarn">⚠️ لم تُحدد إحداثية نقطة الانطلاق (الصناعية). اضغط هنا لإدخالها مرة وحدة وتنحفظ على جهازك.</div>
+      <div class="warnbox" id="startWarn">⚠️ لم تُحدد نقطة انطلاق هذه الرحلة. اضغط هنا لإدخالها وحفظها لهذه الرحلة فقط.</div>
 
       <label>نوع الرحلة</label>
       <div class="seg">
@@ -256,6 +256,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtC = n => n.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+const coordText = p => fmtC(p.lat) + ', ' + fmtC(p.lng);
 const str = v => (typeof v === 'string' ? v : '');
 /* يثبّت اتجاه الأرقام والإحداثيات من اليسار لليمين داخل النص العربي حتى ما تنعكس */
 const ltr = s => '⁦' + s + '⁩';
@@ -269,6 +270,7 @@ function newTrip(){
   const used = new Set(S.trips.map(t => t.color));
   const free = PALETTE.find(p => !used.has(p.c)) || PALETTE[S.seq % PALETTE.length];
   return { id: 't' + Date.now().toString(36) + S.seq, n: S.seq, tech:'', est:'', hood:'', eng:'', work:'', dest:'',
+           startName: DEFAULT_START.name, startCoords: DEFAULT_START.coords, factor:'1',
            type:'both', color: free.c, done:false };
 }
 function save(){ try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e){} }
@@ -279,6 +281,9 @@ function load(){
     S.trips = d.trips.slice(0, MAX_TRIPS).map((t, i) => ({
       id: str(t.id) || ('t' + i), n: +t.n || (i + 1),
       tech: str(t.tech), est: str(t.est), hood: str(t.hood), eng: str(t.eng), work: str(t.work), dest: str(t.dest),
+      startName: str(t.startName) || str(d.startName) || DEFAULT_START.name,
+      startCoords: str(t.startCoords) || str(d.startCoords) || DEFAULT_START.coords,
+      factor: str(t.factor) || str(d.factor) || '1',
       type: TRIP[t.type] ? t.type : 'both', color: str(t.color) || PALETTE[i % PALETTE.length].c, done: !!t.done
     }));
     S.active = d.active; S.seq = +d.seq || 0;
@@ -293,7 +298,14 @@ function load(){
   if(!S.startName) S.startName = DEFAULT_START.name;
   if(!S.startCoords) S.startCoords = DEFAULT_START.coords;
   S.seq = Math.max(S.seq, ...S.trips.map(t => t.n), 0);
-  if(!S.trips.length){ const t = newTrip(); t.tech = legacyTech; S.trips.push(t); }
+  if(!S.trips.length){
+    const t = newTrip();
+    t.tech = legacyTech;
+    t.startName = S.startName || DEFAULT_START.name;
+    t.startCoords = S.startCoords || DEFAULT_START.coords;
+    t.factor = S.factor || '1';
+    S.trips.push(t);
+  }
   if(S.active !== 'sum' && !S.trips.some(t => t.id === S.active)) S.active = S.trips[0].id;
 }
 const cur = () => S.trips.find(t => t.id === S.active);
@@ -316,9 +328,10 @@ function parseCoords(raw){
   try { s = decodeURIComponent(s); } catch(e){}
   const N = '(-?\\d{1,3}(?:\\.\\d+)?)';
   const pats = [
-    new RegExp('@' + N + ',' + N),
-    new RegExp('!3d' + N + '!4d' + N),
-    new RegExp('[?&](?:q|query|ll|destination|daddr)=[\\s+]*' + N + '[,+\\s]+' + N),
+    new RegExp('@\\s*' + N + '\\s*,\\s*' + N),
+    new RegExp('!3d\\s*' + N + '\\s*!4d\\s*' + N),
+    new RegExp('[?&](?:q|query|ll|center|destination|daddr)=[\\s+]*' + N + '[,+\\s]+' + N),
+    new RegExp('(?:place/|data=!3m1!4b1!4m5!3m4!1s)?' + N + '\\s*,\\s*' + N),
     new RegExp(N + '\\s*[,;\\s]\\s*' + N)
   ];
   for(const re of pats){
@@ -339,29 +352,29 @@ function haversineKm(a, b){
   const h = Math.sin(dLat/2)**2 + Math.cos(a.lat*rad) * Math.cos(b.lat*rad) * Math.sin(dLng/2)**2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-function factorVal(){
-  const f = parseFloat(norm(S.factor));
+function factorVal(t){
+  const f = parseFloat(norm(t.factor));
   return (isFinite(f) && f >= 0.5 && f <= 5) ? f : 1;
 }
 function calc(t){
   const dest = parseCoords(t.dest);
-  const start = parseCoords(S.startCoords);
+  const start = parseCoords(t.startCoords);
   const link = dest ? 'https://www.google.com/maps/dir/?api=1&destination=' + fmtC(dest.lat) + ',' + fmtC(dest.lng) + '&travelmode=driving' : '';
   let oneWay = null, total = null;
   if(dest && start){
-    oneWay = haversineKm(start, dest) * factorVal();
+    oneWay = haversineKm(start, dest) * factorVal(t);
     total = oneWay * TRIP[t.type].mult;
   }
   return { dest, start, link, oneWay, total };
 }
 const tripName = t => t.est.trim() || ('رحلة ' + t.n);
-const startLabel = () => S.startName.trim() || 'نقطة الانطلاق';
+const startLabel = t => t.startName.trim() || 'نقطة الانطلاق';
 
 /* ---------- التبويبات ---------- */
 function makeTab(t){
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'tab' + (t.id === S.active ? ' on' : '');
+  b.className = 'tab' + (t.id === S.active ? ' on' : '') + (t.done ? ' done' : '');
   b.dataset.id = t.id;
   b.style.setProperty('--c', t.color);
   b.innerHTML = '<span class="t1">' + esc(tripName(t)) + (t.done ? '<span class="chk">✔</span>' : '') + '</span>' +
@@ -370,12 +383,15 @@ function makeTab(t){
 }
 function renderTabs(){
   const box = $('tabs'), sl = box.scrollLeft;
-  box.replaceChildren(...S.trips.map(makeTab));
+  box.replaceChildren(...orderedTrips().map(makeTab));
   box.scrollLeft = sl;
   $('sumTab').classList.toggle('on', S.active === 'sum');
   $('counter').textContent = 'الرحلات: ' + S.trips.length + ' / ' + MAX_TRIPS;
   $('addTab').disabled = S.trips.length >= MAX_TRIPS;
   refreshNames();
+}
+function orderedTrips(){
+  return [...S.trips].sort((a, b) => Number(a.done) - Number(b.done) || a.n - b.n);
 }
 function updateTabEl(t){
   const old = $('tabs').querySelector('[data-id="' + t.id + '"]');
@@ -417,6 +433,9 @@ function paintTrip(t){
 }
 function fillForm(t){
   FIELDS.forEach(f => { $(f).value = t[f]; });
+  $('startName').value = t.startName;
+  $('startCoords').value = t.startCoords;
+  $('factor').value = t.factor;
   document.querySelector('input[name=trip][value="' + t.type + '"]').checked = true;
   $('tech').classList.remove('invalid');
 }
@@ -428,9 +447,9 @@ function refreshTrip(){
   /* إحداثية الموقع */
   const raw = t.dest.trim(), dh = $('destHint');
   if(!raw){
-    dh.textContent = 'الصق الإحداثية (خط العرض ثم خط الطول) أو رابط قوقل ماب الكامل'; dh.className = 'hint';
+    dh.textContent = 'الصق إحداثية أو رابط Google Maps كامل، وسيتم تحويله تلقائيًا إلى أرقام'; dh.className = 'hint';
   } else if(c.dest){
-    dh.textContent = '✔ تم التعرف على الموقع: ' + ltr(fmtC(c.dest.lat) + ', ' + fmtC(c.dest.lng)); dh.className = 'hint ok';
+    dh.textContent = '✔ تم التعرف على الموقع: ' + ltr(coordText(c.dest)); dh.className = 'hint ok';
   } else if(looksShortLink(raw)){
     dh.textContent = 'هذا رابط مختصر ما أقدر أقرأ منه الإحداثية. افتحه ثم انسخ الإحداثية أو الرابط الكامل.'; dh.className = 'hint err';
   } else {
@@ -450,10 +469,10 @@ function refreshTrip(){
   $('total').innerHTML = c.total === null ? '— <small>كم</small>' : fmt(c.total) + ' <small>كم</small>';
   if(c.total !== null){
     $('totalSub').textContent = tr.mult === 2
-      ? 'ذهاب وعودة: ' + ltr(fmt(c.oneWay) + ' × 2') + '   (' + startLabel() + ' ⇄ الموقع)'
-      : tr.label + ': ' + ltr(fmt(c.oneWay)) + ' كم   (' + startLabel() + ' ← الموقع)';
+      ? 'ذهاب وعودة: ' + ltr(fmt(c.oneWay) + ' × 2') + '   (' + startLabel(t) + ' ⇄ الموقع)'
+      : tr.label + ': ' + ltr(fmt(c.oneWay)) + ' كم   (' + startLabel(t) + ' ← الموقع)';
   } else if(c.dest && !c.start){
-    $('totalSub').textContent = 'أدخل إحداثية نقطة الانطلاق (الصناعية) لتظهر المسافة';
+    $('totalSub').textContent = 'أدخل رابط أو إحداثية نقطة الانطلاق لتظهر المسافة';
   } else {
     $('totalSub').textContent = 'أدخل إحداثية الموقع لتظهر المسافة';
   }
@@ -502,7 +521,7 @@ function tripSummary(t){
   if(!t.tech.trim()){ $('tech').classList.add('invalid'); $('tech').focus(); toast('اكتب اسم الفني أول', true); return null; }
   const c = calc(t);
   if(!c.dest){ toast('أدخل إحداثية الموقع أول', true); $('dest').focus(); return null; }
-  if(c.total === null){ toast('أدخل إحداثية نقطة الانطلاق (الصناعية)', true); $('startBox').open = true; return null; }
+  if(c.total === null){ toast('أدخل رابط أو إحداثية نقطة الانطلاق', true); $('startBox').open = true; return null; }
   const v = x => x.trim() || '—';
   return [
     '📍 طلب فني',
@@ -511,7 +530,7 @@ function tripSummary(t){
     'الحي: ' + v(t.hood),
     'المهندس الموجه: ' + v(t.eng),
     'نوع العمل: ' + v(t.work),
-    'نقطة الانطلاق: ' + startLabel(),
+    'نقطة الانطلاق: ' + startLabel(t),
     'نوع الرحلة: ' + TRIP[t.type].label,
     'المسافة (اتجاه واحد): ' + fmt(c.oneWay) + ' كم',
     'إجمالي المسافة: ' + fmt(c.total) + ' كم',
@@ -536,6 +555,7 @@ function groupData(){
     g.trips.push(t); g.count++; g.km += km;
     if(t.done){ g.done++; g.doneKm += km; }
   });
+  map.forEach(g => g.trips.sort((a, b) => Number(a.done) - Number(b.done) || a.n - b.n));
   return [...map.values()].sort((a, b) =>
     (a.key === '__none') - (b.key === '__none') || a.name.localeCompare(b.name, 'ar'));
 }
@@ -594,9 +614,9 @@ function allText(){
 }
 function exportText(){
   const head = ['اسم الفني','رقم المقايسة','اسم الحي','اسم المهندس الموجه','نوع العمل','إحداثية موقع العمل','نوع الرحلة','المسافة اتجاه واحد (كم)','إجمالي المسافة (كم)'];
-  const rows = S.trips.map(t => {
+  const rows = orderedTrips().map(t => {
     const c = calc(t);
-    return [t.tech.trim(), t.est.trim(), t.hood.trim(), t.eng.trim(), t.work.trim(), t.dest.trim(), TRIP[t.type].label,
+    return [t.tech.trim(), t.est.trim(), t.hood.trim(), t.eng.trim(), t.work.trim(), c.dest ? coordText(c.dest) : t.dest.trim(), TRIP[t.type].label,
       c.oneWay === null ? '' : c.oneWay.toFixed(2), c.total === null ? '' : c.total.toFixed(2)];
   });
   return [head, ...rows].map(row => row.map(v => String(v).replace(/[\t\r\n]+/g, ' ').trim()).join('\t')).join('\n');
@@ -626,14 +646,15 @@ function whatsapp(text){ window.open('https://wa.me/?text=' + encodeURIComponent
 
 /* ---------- نقطة الانطلاق ---------- */
 function refreshStart(){
-  const start = parseCoords(S.startCoords), raw = S.startCoords.trim();
-  $('startLabel').textContent = startLabel();
+  const t = cur(); if(!t) return;
+  const start = parseCoords(t.startCoords), raw = t.startCoords.trim();
+  $('startLabel').textContent = startLabel(t);
   const st = $('startState');
   st.textContent = start ? '✔' : '⚠️ حدد الإحداثية';
   st.className = start ? '' : 'bad';
   const sh = $('startHint');
   if(!raw){ sh.textContent = ''; sh.className = 'hint'; }
-  else if(start){ sh.textContent = '✔ ' + ltr(fmtC(start.lat) + ', ' + fmtC(start.lng)); sh.className = 'hint ok'; }
+  else if(start){ sh.textContent = '✔ ' + ltr(coordText(start)); sh.className = 'hint ok'; }
   else { sh.textContent = 'إحداثية غير مفهومة'; sh.className = 'hint err'; }
   $('startCoords').classList.toggle('invalid', !!raw && !start);
 }
@@ -656,7 +677,7 @@ $('swatches').addEventListener('click', e => {
 });
 $('doneBtn').addEventListener('click', () => {
   const t = cur(); if(!t) return;
-  t.done = !t.done; refreshTrip();
+  t.done = !t.done; refreshTrip(); renderTabs();
   toast(t.done ? 'تم تسجيل الإنجاز ✔' : 'تم التراجع عن الإنجاز');
 });
 $('del').addEventListener('click', deleteTrip);
@@ -682,7 +703,8 @@ $('startWarn').addEventListener('click', () => {
   $('startBox').open = true; $('startCoords').focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 ['startName','startCoords','factor'].forEach(id => $(id).addEventListener('input', () => {
-  S.startName = $('startName').value; S.startCoords = $('startCoords').value; S.factor = $('factor').value;
+  const t = cur(); if(!t) return;
+  t.startName = $('startName').value; t.startCoords = $('startCoords').value; t.factor = $('factor').value;
   refreshStart();
   if(S.active === 'sum') renderSummary(); else refreshTrip();
   save();
@@ -700,11 +722,12 @@ $('sumCsv').addEventListener('click', async () => toast(await copyText(exportTex
 (function init(){
   load();
   buildSwatches();
-  $('startName').value = S.startName;
-  $('startCoords').value = S.startCoords;
-  $('factor').value = S.factor;
+  const t = cur();
+  $('startName').value = t.startName;
+  $('startCoords').value = t.startCoords;
+  $('factor').value = t.factor;
   refreshStart();
-  if(!parseCoords(S.startCoords)) $('startBox').open = true;
+  if(!parseCoords(t.startCoords)) $('startBox').open = true;
   renderAll();
   scrollActiveIntoView();
 })();
