@@ -575,6 +575,7 @@ function groupHTML(g){
     '<div class="chips"><span class="chip2">' + g.count + ' رحلة</span>' +
     '<span class="chip2">' + g.done + ' منجزة</span>' +
     '<span class="chip2">' + fmt(g.km) + ' كم</span></div>' +
+    '<button class="btn sec groupwa" type="button" data-key="' + esc(g.key) + '">💬 إرسال رحلات الفني عبر واتساب</button>' +
     g.trips.map(rowHTML).join('') +
     '<div class="gnote">كم الرحلات المنجزة: ' + fmt(g.doneKm) + '</div>' +
   '</section>';
@@ -712,6 +713,12 @@ $('startWarn').addEventListener('click', () => {
 
 $('sumFilter').addEventListener('change', () => { sumFilter = $('sumFilter').value; renderSummary(); });
 $('sumList').addEventListener('click', e => {
+  const wb = e.target.closest('.groupwa');
+  if(wb){
+    const g = groupData().find(x => x.key === wb.dataset.key);
+    if(g) whatsapp(groupText(g));
+    return;
+  }
   const r = e.target.closest('.trow'); if(r) openTrip(r.dataset.id);
 });
 $('sumCopy').addEventListener('click', async () => toast(await copyText(allText()) ? 'تم نسخ الملخص ✔' : 'تعذر النسخ', false));
